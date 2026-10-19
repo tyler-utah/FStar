@@ -3,10 +3,16 @@ module FStar.Math.Exp
 open FStar.Real
 open FStar.Functions
 
+module Pow = FStar.Math.Pow
+module Series = FStar.Math.LogSeries
+
 type rpos = x:real{x >. 0.0R}
 
-(* A proxy, see https://github.com/FStarLang/FStar/issues/4244 *)
-assume val exp0 : real -> rpos
+(* Fix the natural-exponential normalization using the convergent log(2)
+   series and constructed real powers, rather than a free exponential proxy. *)
+let exp0 (x:real) : rpos =
+  Series.log_two_positive ();
+  Pow.exp2 (x /. Series.log_two ())
 
 (* This module was somewhat painful to write. See also
 https://github.com/FStarLang/FStar/issues/4245. *)
@@ -34,7 +40,8 @@ let exp_positive (x : real)
   = ()
 
 let exp_base () : Lemma (exp 0.0R == 1.0R)
-  = admit() (* basic property, assumed *)
+  = Series.log_two_positive ();
+    Pow.pow_zero 2.0R
 
 let exp_add (x y : real)
   : Lemma (ensures exp (x +. y) == exp x *. exp y)
@@ -71,3 +78,27 @@ let log_div (x y : real{x >. 0.0R /\ y >. 0.0R})
   = log_mul x (1.0R /. y);
     assert (exp (log x -. log y) == exp (log x) /. exp (log y));
     ()
+
+let log_two_is_series ()
+  : Lemma (log 2.0R == Series.log_two ()) =
+  Series.log_two_positive ();
+  Pow.pow_one 2.0R;
+  assert (exp (Series.log_two ()) == 2.0R);
+  log_exp (Series.log_two ())
+
+let exp2_as_exp (x:real)
+  : Lemma (Pow.exp2 x == exp (x *. log 2.0R)) =
+  Series.log_two_positive ();
+  log_two_is_series ()
+
+let log_two_positive ()
+  : Lemma (log 2.0R >. 0.0R) =
+  Series.log_two_positive ();
+  log_two_is_series ()
+
+let log_two_decimal_bounds ()
+  : Lemma (
+      69314718055994530.0R /. 100000000000000000.0R <. log 2.0R /\
+      log 2.0R <. 69314718055994532.0R /. 100000000000000000.0R) =
+  log_two_is_series ();
+  Series.log_two_decimal_bounds ()
